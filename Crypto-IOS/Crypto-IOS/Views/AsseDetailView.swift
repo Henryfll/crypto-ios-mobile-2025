@@ -8,15 +8,30 @@ import SwiftUI
 
 struct AssetDetailView: View {
     
-    let asset:Asset
+ @State var viewModel: AssetDetailsViewModel
     
     var body: some View {
-        Text(asset.name)
-            .navigationTitle(asset.name)
+        VStack{
+            Text(viewModel.asset.name)
+            Button {
+                viewModel.addToFavourities()
+            }label:{
+                Text("Add to favourites")
+            }
+        }
+        .navigationTitle(viewModel.asset.name)
+        .alert(
+            viewModel.errorMessage ?? "",
+            isPresented: $viewModel.showError ){
+                Button("OK"){
+                    
+                }
+            }
+        
     }
 }
 #Preview{
     NavigationStack{
-        AssetDetailView(asset: .init(id: "bitcoin", name: "Bitcoin", symbol: "BTC", priceUsd:"121321.1212", changePercent24Hr: "2.36"))
+        AssetDetailView(viewModel: .init(asset: .init(id: "bitcoin", name: "Bitcoin", symbol: "BTC", priceUsd:"121321.1212", changePercent24Hr: "2.36")))
     }
 }
