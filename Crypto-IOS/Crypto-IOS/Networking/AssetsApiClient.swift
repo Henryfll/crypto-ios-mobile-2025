@@ -6,77 +6,194 @@
 //
 import Dependencies
 import Foundation
+import XCTestDynamicOverlay
+import FirebaseFirestore
 
-struct AssetsApiClient{
-    var fetchAllAssets:() async throws -> [Asset]
+struct AssetsApiClient {
+    var fetchAllAssets: () async throws -> [Asset]
+    var saveFavourite: (User, Asset) async throws -> Void
+    var fetchFavourities : (User) async throws -> [String]
+    var fetchAsset: (String)  async throws -> Asset
 }
-enum NetworkingError:Error{
+
+enum NetworkingError: Error {
     case invalidURL
     
-    var localizedDescription:  String{
-        switch self{
+    var localizedDescription: String {
+        switch self {
         case .invalidURL:
             return "Invalid URL"
         }
     }
 }
 
-extension AssetsApiClient: DependencyKey{
-    static var liveValue:AssetsApiClient{
-        .init (
-            fetchAllAssets:{
-                let urlSession = URLSession.shared
+extension AssetsApiClient: DependencyKey {
+    static var liveValue: AssetsApiClient {
+        let db = Firestore.firestore().collection("favourites")
+        let urlSession = URLSession.shared
+        let apikey = ""
+        let baseUrl = "https://rest.coincap.io/v3"
+        
+        return .init(
+            fetchAllAssets: {
+                
                 
                 guard let url = URL(string:"https://c8dc6bef-802f-4ebc-b955-7b693182aa53.mock.pstmn.io/v3/assets") else{
                     throw NetworkingError.invalidURL
                 }
                 
-                    let (data, _) = try await urlSession.data(for: URLRequest(url:url))
-                    let assetsResponse = try JSONDecoder().decode(AssetsResponse.self, from: data)
-                    return assetsResponse.data
-               
+                let (data, _) = try await urlSession.data(for: URLRequest(url: url))
+                let assetsResponse = try JSONDecoder().decode(AssetsResponse.self, from: data)
+                
+                return assetsResponse.data
+            },
+            saveFavourite: { user, asset in
+                try await db.document(user.id).setData(
+                    ["favourites": FieldValue.arrayUnion([asset.id])],
+                    merge: true
+                )
+            },
+            fetchFavourities: { user in
+               let doc = try await db.document(user.id).getDocument()
+               let favourities = doc.get( "favourites") as? [String]
+               return favourities ?? []
+                
+            }
+            ,
+            fetchAsset: { assetId in
+                guard let url = URL(string: "\(baseUrl)/assets/\(assetId)?apiKey=\(apikey)") else {
+                    throw NetworkingError.invalidURL
+                }
+                let (data, _) = try await urlSession.data(for: URLRequest(url: url))
+                let asset = try JSONDecoder().decode(AssetResponse.self, from: data)
+                             
+                return asset.data
             }
         )
     }
     
-    static var previewValue: AssetsApiClient{
-        .init(fetchAllAssets: {[
-            .init(
+    static var previewValue: AssetsApiClient {
+        .init(
+            fetchAllAssets: {[
+                .init(
+                    id: "bitcoin",
+                    name: "Bitcoin",
+                    symbol: "BTC",
+                    priceUsd: "89111121.2828",
+                    changePercent24Hr: "8.992929292"
+                ),
+                .init(
+                    id: "ethereum",
+                    name: "Ethereum",
+                    symbol: "ETH",
+                    priceUsd: "1289.282828",
+                    changePercent24Hr: "-1.2323232323"
+                ),
+                .init(
+                    id: "solana",
+                    name: "Solana",
+                    symbol: "SOL",
+                    priceUsd: "500.29292929",
+                    changePercent24Hr: "9.2828282"
+                )
+            ]},
+            saveFavourite: { _, _ in },
+            fetchFavourities: {_ in []}
+            ,
+            fetchAsset: { _ in .init(
                 id: "bitcoin",
                 name: "Bitcoin",
                 symbol: "BTC",
-                priceUsd: "12315",
-                changePercent24Hr: "8.87"
-            ),
-            .init(
-                id: "etherium",
-                name: "Etherium",
-                symbol: "ETH",
-                priceUsd: "8454",
-                changePercent24Hr: "-4.87"
+                priceUsd: "89111121.2828",
+                changePercent24Hr: "8.992929292"
             )
-            ,
-            .init(
-                id: "solanda",
-                name: "Solanda",
-                symbol: "SOL",
-                priceUsd: "12.545465",
-                changePercent24Hr: "8.87"
-            )
-        ]})
+                
+            }        )
     }
     
-    static var testValue: AssetsApiClient{
-        .init(fetchAllAssets: {
-            reportIssue("AssetsApiClient.fetchAllAssets is unimplement")
-            return []
-        })
+    static var testValue: AssetsApiClient {
+        .init(
+            fetchAllAssets: {
+                XCTFail("AssetsApiClient.fetchAllAssets is unimplemented")
+                //            reportIssue("AssetsApiClient.fetchAllAssets is unimplemented")
+                return []
+            },
+            saveFavourite: { _, _ in
+                XCTFail("AssetsApiClient.saveFavourite is unimplemented")
+            },
+            fetchFavourities: { _ in
+                XCTFail("AssetsApiClient.fetchAsset is unimplemented")
+                return []
+            },
+            fetchAsset: { _ in
+                XCTFail("AssetsApiClient.fetchAsset is unimplemented")
+                return .init(
+                    id: "bitcoin",
+                    name: "Bitcoin",
+                    symbol: "BTC",
+                    priceUsd: "89111121.2828",
+                    changePercent24Hr: "8.992929292"
+                )
+                
+            }
+        )
     }
 }
 
-extension DependencyValues{
-    var assetsApiClient: AssetsApiClient{
-        get { self [AssetsApiClient.self]}
-        set { self [AssetsApiClient.self] = newValue}
+extension DependencyValues {
+    var assetsApiClient: AssetsApiClient {
+        get { self[AssetsApiClient.self] }
+        set { self[AssetsApiClient.self] = newValue }
     }
 }
+
+
+//
+//
+//protocol AssetsApiProtocol {
+//    func getAssets() async throws -> [Asset]
+//}
+//
+//
+//struct AssetsApiService: AssetsApiProtocol {
+//    func getAssets() async throws -> [Asset] {
+//        let urlSession = URLSession.shared
+//
+//        guard let url = URL(string: "https://4ff399d1-53e9-4a28-bc99-b7735bad26bd.mock.pstmn.io/v3/assets") else {
+//            throw NetworkingError.invalidURL
+//        }
+//
+//        let (data, _) = try await urlSession.data(for: URLRequest(url: url))
+//        let assetsResponse = try JSONDecoder().decode(AssetsResponse.self, from: data)
+//
+//        return assetsResponse.data
+//    }
+//}
+//
+//struct AssetsApiServicePreview: AssetsApiProtocol {
+//    func getAssets() async throws -> [Asset] {
+//        [
+//            .init(
+//                id: "bitcoin",
+//                name: "Bitcoin",
+//                symbol: "BTC",
+//                priceUsd: "89111121.2828",
+//                changePercent24Hr: "8.992929292"
+//            ),
+//            .init(
+//                id: "ethereum",
+//                name: "Ethereum",
+//                symbol: "ETH",
+//                priceUsd: "1289.282828",
+//                changePercent24Hr: "-1.2323232323"
+//            ),
+//            .init(
+//                id: "solana",
+//                name: "Solana",
+//                symbol: "SOL",
+//                priceUsd: "500.29292929",
+//                changePercent24Hr: "9.2828282"
+//            )
+//        ]
+//    }
+//}
