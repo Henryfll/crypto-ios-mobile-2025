@@ -14,11 +14,11 @@ struct AppTabView:View {
                     .navigationTitle("Home")
             }
             Tab("Favourities", systemImage: "star"){
-                Text("Home")
+                FavouritiesView()
             }
             
             Tab("Settings", systemImage: "gear"){
-                Text("Settings")
+                SettingsView()
             }
         }
     }
